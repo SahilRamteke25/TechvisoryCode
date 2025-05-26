@@ -1,0 +1,22 @@
+<template>
+<lightning-card title="All Accounts name" icon-name="utility:user">
+        <!-- Accounts List -->
+        <template if:true={accounts}>
+            <div class="slds-m-around_medium">
+                <template for:each={accounts} for:item="account">
+                    <lightning-layout key={account.Id} class="slds-var-m-vertical_small">
+                        <lightning-layout-item>{account.Name}</lightning-layout-item> 
+
+                    </lightning-layout>
+                </template>
+            </div>
+        </template>
+
+        <!-- Error Message -->
+        <template if:true={error}>
+            <div class="slds-m-around_medium">
+                <p>Error loading accounts: {error.message}</p>
+            </div>
+        </template>
+    </lightning-card>
+</template>

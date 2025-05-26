@@ -1,0 +1,21 @@
+<template>
+    <lightning-card title="Account Data Table" icon-name="standard:account">
+        <div class="slds-m-around_medium">
+            <!-- Data Table Component -->
+            <lightning-datatable
+                key-field="id"
+                data={accounts}
+                columns={columns}
+                hide-checkbox-column
+                is-loading={isLoading}>
+            </lightning-datatable>
+            
+            <!-- Error Message (if any) -->
+            <template if:true={error}>
+                <div class="slds-notify slds-notify_alert slds-theme_alert-texture slds-theme_error">
+                    {error}
+                </div>
+            </template>
+        </div>
+    </lightning-card>
+</template>
