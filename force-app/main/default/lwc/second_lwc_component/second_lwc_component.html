@@ -49,6 +49,14 @@
                 </tbody>
             </table>
 
+            <!-- Pagination Controls -->
+<div class="slds-p-top_medium slds-align_absolute-center">
+    <lightning-button label="Previous" onclick={handlePrev} disabled={disablePrev} class="slds-m-right_small"></lightning-button>
+    <span>Page {currentPage} of {totalPages}</span>
+    <lightning-button label="Next" onclick={handleNext} disabled={disableNext} class="slds-m-left_small"></lightning-button>
+</div>
+
+
             <!-- Create Record Modal -->
             <template if:true={showCreateModal}>
                 <section role="dialog" tabindex="-1" class="slds-modal slds-fade-in-open">

@@ -4,6 +4,8 @@ import { refreshApex } from '@salesforce/apex';
 import { ShowToastEvent } from 'lightning/platformShowToastEvent';
 import getAccountList from '@salesforce/apex/Second_component_datatable.getAccountList';
 import deleteAccounts from '@salesforce/apex/Second_component_datatable.deleteAccounts';
+import getTotalAccountCount from '@salesforce/apex/Second_component_datatable.getTotalAccountCount';
+const PAGE_SIZE = 10;
 
 export default class BasicDataTable extends NavigationMixin(LightningElement) {
     @track accounts = [];
@@ -12,6 +14,11 @@ export default class BasicDataTable extends NavigationMixin(LightningElement) {
     @track selectedIds = [];
     @track showCreateModal = false;
     @track wiredAccountsResult;
+
+    // pagination variables
+    @track currentPage = 1;
+    @track totalPages = 0;
+    @track totalRecords = 0;
 
     // Getter for update button disabled state
     get isUpdateDisabled() {
@@ -22,6 +29,64 @@ export default class BasicDataTable extends NavigationMixin(LightningElement) {
     get isDeleteDisabled() {
         return this.selectedIds.length === 0;
     }
+
+
+    get disablePrev() {
+        return this.currentPage === 1;
+    }
+
+    get disableNext() {
+        return this.currentPage >= this.totalPages;
+    }
+
+    connectedCallback() {
+        this.loadTotalRecords();
+        this.loadAccounts();
+    }
+
+    loadTotalRecords() {
+        getTotalAccountCount()
+            .then(count => {
+                this.totalRecords = count;
+                this.totalPages = Math.ceil(count / PAGE_SIZE);
+            })
+            .catch(error => {
+                this.showToast('Error', error.body.message, 'error');
+            });
+    }
+
+    loadAccounts() {
+        this.isLoading = true;
+        const offset = (this.currentPage - 1) * PAGE_SIZE;
+        getAccountList({ limitSize: PAGE_SIZE, offsetSize: offset })
+            .then(data => {
+                this.accounts = data;
+                this.error = undefined;
+            })
+            .catch(error => {
+                this.error = error.body.message;
+                this.accounts = [];
+                this.showToast('Error', this.error, 'error');
+            })
+            .finally(() => {
+                this.isLoading = false;
+            });
+    }
+
+    handleNext() {
+        if (this.currentPage < this.totalPages) {
+            this.currentPage++;
+            this.loadAccounts();
+        }
+    }
+
+    handlePrev() {
+        if (this.currentPage > 1) {
+            this.currentPage--;
+            this.loadAccounts();
+        }
+    }
+    
 
     // Wire method to get account data from Apex
     @wire(getAccountList)
