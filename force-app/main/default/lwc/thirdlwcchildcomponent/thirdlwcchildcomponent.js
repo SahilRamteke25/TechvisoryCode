@@ -13,7 +13,7 @@ export default class thirdlwcchildcomponent extends LightningElement {
     ]
     handleclick(event){
     const callParent = new CustomEvent('showmessage',{
-        detail: this.message
+        detail: this.message,bubbles:true
     });
     this.dispatchEvent(callParent);
     }

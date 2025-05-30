@@ -18,6 +18,10 @@ export default class thirdlwcparentcomponent extends LightningElement {
             this.accountContactData = [];
 }
 }
+constructor() {
+    super();
+    this.template.addEventListener('showmessage', this.handleParent.bind(this));
+}
 handleParent(event){
     this.showmessage = event.detail;
 }

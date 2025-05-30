@@ -1,0 +1,70 @@
+<template>
+    <lightning-card title="Accounts with Contacts" icon-name="standard:account">
+        <template if:true={accounts}>
+            <table class="slds-table slds-table_cell-buffer slds-table_bordered slds-table_striped">
+                <thead>
+                    <tr>
+                        
+                        <th>Account Name</th>
+                        <th>Industry</th>
+                        <th>Phone</th>
+                        <th>Annual Revenue</th>
+                        <th>Actions</th>
+                        
+                    </tr>
+                </thead>
+                <tbody>
+                    <template for:each={accounts} for:item="account">
+                        <tr key={account.Id}>
+                            <td>{account.Name}</td>
+                            <td>{account.Industry}</td>
+                            <td>{account.Phone}</td>
+                            <td>{account.AnnualRevenue}</td>
+                            <td>
+                                <lightning-button 
+                                    variant="brand"
+                                    label={account.expandLabel}
+                                    onclick={handleExpand}
+                                    data-id={account.Id}>
+                                </lightning-button>
+                            </td>
+                        </tr>
+
+                        <!-- Expanded Contacts Row -->
+                        <template if:true={account.expanded}>
+                            <tr key={account.rowKey}>
+                                <td colspan="4">
+                                    <template if:true={account.Contacts}>
+                                        <table class="slds-table slds-table_cell-buffer slds-table_bordered slds-m-top_small">
+                                            <thead>
+                                                <tr>
+                                                    <th>Contact Name</th>
+                                                    <th>Contact Email</th>
+                                                </tr>
+                                            </thead>
+                                            <tbody>
+                                                <template for:each={account.Contacts} for:item="con">
+                                                    <tr key={con.Id}>
+                                                        <td>{con.LastName}</td>
+                                                        <td>{con.Email}</td>
+                                                    </tr>
+                                                </template>
+                                            </tbody>
+                                        </table>
+                                    </template>
+                                    <template if:false={account.Contacts}>
+                                        <p>No Contacts Found</p>
+                                    </template>
+                                </td>
+                            </tr>
+                        </template>
+                    </template>
+                </tbody>
+            </table>
+        </template>
+
+        <template if:true={error}>
+            <p class="slds-text-color_error">{error}</p>
+        </template>
+    </lightning-card>
+</template>
