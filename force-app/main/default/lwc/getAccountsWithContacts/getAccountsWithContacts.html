@@ -1,33 +1,34 @@
 <template>
-    <lightning-card title="Accounts with Contacts" icon-name="standard:account">
+    <lightning-card title="Accounts with Linked Contacts" icon-name="standard:account">
         <template if:true={accounts}>
             <table class="slds-table slds-table_cell-buffer slds-table_bordered slds-table_striped">
                 <thead>
                     <tr>
-                        
+                        <th>Linked Contacts</th>
                         <th>Account Name</th>
                         <th>Industry</th>
                         <th>Phone</th>
-                        <th>Annual Revenue</th>
-                        <th>Actions</th>
-                        
+                        <th>Annual Revenue</th>                        
                     </tr>
                 </thead>
                 <tbody>
                     <template for:each={accounts} for:item="account">
                         <tr key={account.Id}>
+                             <td>
+                             <lightning-button-icon 
+                                icon-name={account.iconName}
+                                alternative-text="Expand/Collapse"
+                                onclick={handleExpand}
+                                data-id={account.Id}
+                                variant="bare"
+                                class="slds-m-right_small">
+                            </lightning-button-icon>
+                            </td>
                             <td>{account.Name}</td>
                             <td>{account.Industry}</td>
                             <td>{account.Phone}</td>
                             <td>{account.AnnualRevenue}</td>
-                            <td>
-                                <lightning-button 
-                                    variant="brand"
-                                    label={account.expandLabel}
-                                    onclick={handleExpand}
-                                    data-id={account.Id}>
-                                </lightning-button>
-                            </td>
+                           
                         </tr>
 
                         <!-- Expanded Contacts Row -->
@@ -40,6 +41,8 @@
                                                 <tr>
                                                     <th>Contact Name</th>
                                                     <th>Contact Email</th>
+                                                    <th>Phone</th>
+                                                    <th>Department</th>
                                                 </tr>
                                             </thead>
                                             <tbody>
@@ -47,6 +50,8 @@
                                                     <tr key={con.Id}>
                                                         <td>{con.LastName}</td>
                                                         <td>{con.Email}</td>
+                                                        <td>{con.Phone}</td>
+                                                        <td>{con.Department}</td>
                                                     </tr>
                                                 </template>
                                             </tbody>

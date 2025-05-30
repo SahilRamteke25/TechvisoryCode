@@ -12,7 +12,7 @@ export default class AccountRelatedCOntact extends LightningElement {
                 return { 
                     ...acc, 
                     expanded: false,
-                    expandLabel: 'Expand' // default label
+                    iconName: 'utility:chevronright' // default label
                 };
             });
             this.error = undefined;
@@ -23,14 +23,14 @@ export default class AccountRelatedCOntact extends LightningElement {
         });
 }
 
-    handleExpand(event) {
+handleExpand(event) {
     const accId = event.target.dataset.id;
     this.accounts = this.accounts.map(acc => {
         if (acc.Id === accId) {
             acc.expanded = !acc.expanded;
-            acc.expandLabel = acc.expanded ? 'Collapse' : 'Expand';
+            acc.iconName = acc.expanded ? 'utility:chevrondown' : 'utility:chevronright';
         }
-        return acc;
-    });
+        return acc;
+    });
 }
 }
