@@ -1,0 +1,12 @@
+<template>
+    <lightning-card title="Image Upload">
+        <div class="slds-m-around_medium">
+            <lightning-input type="file" label="Upload Image" accept=".png, .jpg, .jpeg" onchange={handleFileChange}></lightning-input>
+            <template if:true={imageUrl}>
+                <div class="slds-m-top_medium">
+                    <img src={imageUrl} alt="Uploaded Image" class="uploaded-image"/>
+                </div>
+            </template>
+        </div>
+    </lightning-card>
+</template>

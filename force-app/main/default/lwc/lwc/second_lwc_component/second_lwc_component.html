@@ -1,0 +1,119 @@
+<template>
+    <lightning-card title="Account Data Table" icon-name="standard:account">
+        <!-- Action Buttons at the top -->
+        <div class="slds-p-around_medium slds-grid slds-grid_align-spread">
+            <lightning-button label="Create" icon-name="utility:add" variant="brand" onclick={handleCreate}></lightning-button>
+            <lightning-button label="Update" icon-name="utility:edit" variant="neutral" disabled={isUpdateDisabled} onclick={handleUpdate}></lightning-button>
+            <lightning-button label="Delete" icon-name="utility:delete" variant="destructive" disabled={isDeleteDisabled} onclick={handleDelete}></lightning-button>
+        </div>
+
+        <div class="slds-p-around_medium">
+            <table class="slds-table slds-table_bordered slds-table_cell-buffer">
+                <thead>
+                    <tr class="slds-text-title_caps">
+                        <th scope="col"></th> <!-- Checkbox column -->
+                        <th scope="col">Name</th>
+                        <th scope="col">Industry</th>
+                        <th scope="col">Phone</th>
+                        <th scope="col">AnnualRevenue</th>
+                        <th scope="col">Website</th>
+                        <th scope="col">View Record </th> <!-- Changed from Actions -->
+                    </tr>
+                </thead>
+                <tbody>
+                    <template for:each={accounts} for:item="account">
+                        <tr key={account.Id}>
+                            <td>
+                                <lightning-input type="checkbox" 
+                                    data-id={account.Id} 
+                                    onchange={handleSelection}>
+                                </lightning-input>
+                            </td>
+                            <td>{account.Name}</td>
+                            <td>{account.Industry}</td>
+                            <td>{account.Phone}</td>
+                            <td>{account.AnnualRevenue}</td>
+                            <td>
+                                <a href={account.Website} target="_blank" rel="noopener">
+                                    {account.Website}
+                                </a>
+                            </td>
+                            <td>
+                                <a href="#" onclick={handleView} data-id={account.Id} class="slds-button slds-button_icon slds-align_absolute-center">
+                                    <lightning-icon icon-name="utility:preview" size="small"></lightning-icon>
+                                    <span class="slds-assistive-text">View</span>
+                                </a>
+                            </td>
+                        </tr>
+                    </template>
+                </tbody>
+            </table>
+
+            <!-- Pagination Controls -->
+<div class="slds-p-top_medium slds-align_absolute-center">
+    <lightning-button label="Previous" onclick={handlePrev} disabled={disablePrev} class="slds-m-right_small"></lightning-button>
+    <span>Page {currentPage} of {totalPages}</span>
+    <lightning-button label="Next" onclick={handleNext} disabled={disableNext} class="slds-m-left_small"></lightning-button>
+</div>
+
+
+            <!-- Create Record Modal -->
+            <template if:true={showCreateModal}>
+                <section role="dialog" tabindex="-1" class="slds-modal slds-fade-in-open">
+                    <div class="slds-modal__container">
+                        <header class="slds-modal__header">
+                            <h2 class="slds-text-heading_medium">Create New Account</h2>
+                            <button class="slds-button slds-button_icon slds-modal__close" onclick={closeModal}>
+                                <lightning-icon icon-name="utility:close" size="small"></lightning-icon>
+                            </button>
+                        </header>
+                        <div class="slds-modal__content slds-p-around_medium">
+                            <lightning-record-edit-form object-api-name="Account" onsuccess={handleCreateSuccess}>
+                                <div class="slds-grid slds-wrap">
+                                    <div class="slds-col slds-size_1-of-2 slds-p-around_small">
+                                        <lightning-input-field field-name="Name"></lightning-input-field>
+                                    </div>
+                                    <div class="slds-col slds-size_1-of-2 slds-p-around_small">
+                                        <lightning-input-field field-name="Industry"></lightning-input-field>
+                                    </div>
+                                    <div class="slds-col slds-size_1-of-2 slds-p-around_small">
+                                        <lightning-input-field field-name="Phone"></lightning-input-field>
+                                    </div>
+                                    <div class="slds-col slds-size_1-of-2 slds-p-around_small">
+                                        <lightning-input-field field-name="AnnualRevenue"></lightning-input-field>
+                                    </div>
+                                    <div class="slds-col slds-size_1-of-2 slds-p-around_small">
+                                        <lightning-input-field field-name="Website"></lightning-input-field>
+                                    </div>
+                                </div>
+                                <div class="slds-m-top_medium">
+                                    <lightning-button variant="neutral" label="Cancel" onclick={closeModal}></lightning-button>
+                                    <lightning-button variant="brand" label="Save" type="submit"></lightning-button>
+                                </div>
+                            </lightning-record-edit-form>
+                        </div>
+                    </div>
+                </section>
+                <div class="slds-backdrop slds-backdrop_open"></div>
+            </template>
+
+            <!-- Loading Spinner -->
+            <template if:true={isLoading}>
+                <div class="slds-spinner_container">
+                    <div class="slds-spinner slds-spinner_medium" role="alert">
+                        <span class="slds-assistive-text">Loading</span>
+                        <div class="slds-spinner__dot-a"></div>
+                        <div class="slds-spinner__dot-b"></div>
+                    </div>
+                </div>
+            </template>
+
+            <!-- Error Message (if any) -->
+            <template if:true={error}>
+                <div class="slds-notify slds-notify_alert slds-theme_alert-texture slds-theme_error">
+                    {error}
+                </div>
+            </template>
+        </div>
+    </lightning-card>
+</template>
