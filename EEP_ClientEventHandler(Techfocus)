@@ -1,0 +1,205 @@
+/******************************************************************************************************************************************
+* Name         :    EEP_ClientEventHandler
+* Description  :    Handles the JSON creation logic for platform event on after update and after insert of an Account.
+* Author       :    Joy Das
+* Version      :    1.0
+* Modification Log
+* ----------------
+*   Developer         Method                            Comments
+* ------------- ------------------------    ------------------------------------------------
+* Joy Das       handleUpdatedAccounts       Handles the logic to create JSON on Update Account. Getting called from class: EEP_HouseholdCreationTriggerHandler
+* Joy Das       publishPlatformEvent        Handles the logic to publish Platform Event with Callback functionality.
+* Joy Das       handleSystemContPayload     Handles the JSON of the 'System Contact Cross Reference' (child record) of Account.
+* Joy Das       handleAddressField          Handles the Address fields and put as the nested field in the JSON.
+* Joy Das       getAllFieldsApiName         This method is used to get a list of SObject's field API Names. 
+* Kalpak        handleCreatedAccounts       Handles logic to create JSON on Create Account and make a callout. 
+*******************************************************************************************************************************************/
+
+public without sharing class EEP_ClientEventHandler {
+    
+    public static List<String> accFieldNameList = new List<String>();
+    public static Id personProspectRecordTypeId = Schema.SObjectType.Account.getRecordTypeInfosByName().get(System.Label.Prospect_Record_Type).getRecordTypeId();
+    public static Id personClientRecordTypeId = Schema.SObjectType.Account.getRecordTypeInfosByName().get(System.Label.Client_Record_Type).getRecordTypeId();
+    public static Id companyProspectRecordTypeId = Schema.SObjectType.Account.getRecordTypeInfosByName().get(System.Label.Company_Prospect_Record_Type).getRecordTypeId();
+    public static Id companyClientRecordTypeId = Schema.SObjectType.Account.getRecordTypeInfosByName().get(System.Label.Company_Client_Record_Type).getRecordTypeId();
+    
+    public static Map<String,Object> personAddressMap;
+    public static Map<String,Object> billingAddressMap;
+    public static Map<String,Object> shippingAddressMap;
+    
+    public static Boolean addToJsonList = false;
+    
+    public static void handleUpdatedAccounts(Map<Id,SObject> oldAccMap, Map<Id,SObject> newAccMap ){
+        try{
+            accFieldNameList = getAllFieldsApiName('Account');
+            Map<String, Object> jsonMapAcc = new Map<String, Object>();
+            List<Map<String,Object>> jsonAccList = new List<Map<String,Object>>();
+            Map<Id,System_Contact_Cross_Reference__c> systemContAccMap= new Map<Id,System_Contact_Cross_Reference__c>();
+            
+            //GET RELATED SYSTEM CONTACT REFERENCE LIST
+            List <System_Contact_Cross_Reference__c> systemContList = [Select Id, SF_Account_Id__c,Household__c,Producer_code__c,PC_Contact_ID__c,BC_Contact_ID__c,Claim_Contact_IDs__c,Okta_ID__c 
+                                                                       from System_Contact_Cross_Reference__c 
+                                                                       where SF_Account_Id__c IN :newAccMap.keySet()];
+            for(System_Contact_Cross_Reference__c sysCont : systemContList){
+                systemContAccMap.put(sysCont.SF_Account_Id__c, sysCont);
+            }
+            
+            //GET UPDATED FIELDS AND CREATE JSON
+            for(Account newAcc : (List<Account>)newAccMap.values()){
+                Map<String, Object> newAccFieldValueMap = newAcc.getPopulatedFieldsAsMap();
+                Map<String, Object> oldAccFieldValueMap = oldAccMap.get(newAcc.Id).getPopulatedFieldsAsMap();
+                
+                //NEW INSTANCE FOR ADDRESS MAPS
+                personAddressMap = new Map<String,Object>();
+                billingAddressMap = new Map<String,Object>();
+                shippingAddressMap = new Map<String,Object>();
+                
+                if (newAcc.RecordTypeId == personProspectRecordTypeId || newAcc.RecordTypeId == personClientRecordTypeId ||
+                newAcc.RecordTypeId == companyProspectRecordTypeId || newAcc.RecordTypeId == companyClientRecordTypeId){
+                    
+                    //HANDLE SYSTEM CONTACT PAYLOAD
+                    if(!systemContAccMap.isEmpty()){
+                        handleSystemContPayload(newAcc.Id, systemContAccMap, jsonMapAcc);
+                    }
+                    
+                    for(String fieldName : accFieldNameList){
+                        if(newAccFieldValueMap.get(fieldName) != oldAccFieldValueMap.get(fieldName) || fieldName == 'Id'){
+                            
+                            fieldName = fieldName == 'RecordTypeId'? 'Record_Type_Name__c' : fieldName ;
+                            
+                            if (EEP_ClientPayload.fieldToJSONMapping.containsKey(fieldName)){
+
+                                jsonMapAcc.put(EEP_ClientPayload.fieldToJSONMapping.get(fieldName), newAccFieldValueMap.get(fieldName));
+                                
+                                if(fieldName!= 'Id') addToJsonList = true;
+                            }
+                            //HANDLE ADDRESS FIELD
+                            handleAddressField(fieldName, newAccFieldValueMap, jsonMapAcc);
+                        }
+                    }
+
+                    if(addToJsonList) jsonAccList.add(jsonMapAcc);
+                }
+            }
+            if(!jsonAccList.isEmpty()){
+                //PLATFORM EVENT
+                publishPlatformEvent(jsonAccList);
+            }
+
+        }catch(Exception e){
+            EEP_ErrorLogger.logError(e); //  this logs errors to a custom object
+        }
+    }
+    
+    public static void handleCreatedAccounts(Map<Id,SObject> newAccMap ){
+        try{
+            accFieldNameList = getAllFieldsApiName('Account');
+            Map<String, Object> jsonMapAcc = new Map<String, Object>();
+            List<Map<String,Object>> jsonAccList = new List<Map<String,Object>>();
+
+            Map<Id,Account> accountMap = new Map<Id,Account>([SELECT Id,Partner_Id__r.Producer_Code__c FROM Account WHERE Id IN: newAccMap.keySet()]);
+            
+            for(Account newAcc : (List<Account>)newAccMap.values()){
+                Map<String, Object> newAccFieldValueMap = newAcc.getPopulatedFieldsAsMap();
+
+                //ADDRESS MAPS NEW INSTANCE
+                personAddressMap = new Map<String,Object>();
+                billingAddressMap = new Map<String,Object>();
+                shippingAddressMap = new Map<String,Object>();
+                if (newAcc.RecordTypeId == personProspectRecordTypeId || newAcc.RecordTypeId == personClientRecordTypeId ||
+                newAcc.RecordTypeId == companyProspectRecordTypeId || newAcc.RecordTypeId == companyClientRecordTypeId){
+                    for(String fieldName : accFieldNameList){
+                        if(newAccFieldValueMap.get(fieldName) != null || fieldName == 'Id'){
+                            if (EEP_ClientPayload.fieldToJSONMapping.containsKey(fieldName)){
+                                jsonMapAcc.put(EEP_ClientPayload.fieldToJSONMapping.get(fieldName), newAccFieldValueMap.get(fieldName));
+                                    if(fieldName == 'Partner_Id__c' && accountMap.containsKey(newAcc.Id)){
+                                        jsonMapAcc.put('producerCode', accountMap.get(newAcc.Id).Partner_Id__r.Producer_Code__c);
+                                    }
+                            }
+                            //HANDLE ADDRESS FIELD
+                            handleAddressField(fieldName, newAccFieldValueMap, jsonMapAcc);
+                        }
+                    }
+                    jsonAccList.add(jsonMapAcc);
+                }
+            }
+            if(!jsonAccList.isEmpty()){
+                String endpoint = 'callout:UnqorkClient';
+                String method = 'POST';
+                System.enqueueJob(new EEP_SendResponse(jsonAccList,endpoint,method,newAccMap));
+                // new EEP_SendResponse(jsonAccList,endpoint,method,newAccMap);
+            }
+        }catch(Exception e){
+            EEP_ErrorLogger.logError(e); //  this logs errors to a custom object
+        }
+    }
+    
+    private static void publishPlatformEvent(List<Map<String,Object>> jsonAccList){
+        List<EEP_Unqork_Client_Publish_Response__e> unqorkEventList = new List<EEP_Unqork_Client_Publish_Response__e>();
+        EEP_Unqork_Client_Publish_Response__e unqorkEvent;
+        for(Map<String,Object> jsonMapAcc : jsonAccList ){
+            unqorkEvent = new EEP_Unqork_Client_Publish_Response__e(Client_Metadata__c = JSON.serialize(jsonMapAcc));
+
+            unqorkEventList.add(unqorkEvent);
+        }
+        try{
+            List<Database.SaveResult> resultList = EventBus.publish(unqorkEventList, new FailureAndSuccessCallback(unqorkEventList,null));
+        }catch (Exception e) {
+
+            EEP_ErrorLogger.logError(e);
+        }
+    }
+    
+    //This method creates the payload for System_Contact_Cross_Reference__c related to the triggered Account and returns a list of it.
+    private static void handleSystemContPayload(Id accId,Map<Id,System_Contact_Cross_Reference__c> systemContAccMap, Map<String, Object> jsonMapAcc){
+        System_Contact_Cross_Reference__c systemCont = systemContAccMap.get(accId);
+        Map<String, Object> sysContFieldValueMap = systemCont.getPopulatedFieldsAsMap();
+        
+        Map<String, Object> jsonMapSystemCont = new Map<String, Object>();
+        for(String sysContField : sysContFieldValueMap.keySet()){
+            if(EEP_ClientPayload.systemContJSONMapping.containsKey(sysContField) && (sysContFieldValueMap.get(sysContField) != null && sysContFieldValueMap.get(sysContField) != '' && sysContFieldValueMap.get(sysContField) != 'Id')){
+                jsonMapSystemCont.put(EEP_ClientPayload.systemContJSONMapping.get(sysContField), sysContFieldValueMap.get(sysContField));
+            }
+        }
+        if(!jsonMapSystemCont.isEmpty()) jsonMapAcc.put('systemContactCrossRef', jsonMapSystemCont);
+    }
+    
+    //This method adds the address map with the updated fields in the JSON.
+    private static void handleAddressField(String fieldName, Map<String, Object> newAccFieldValueMap, Map<String, Object> jsonMapAcc){  // Map<String,String> personAddressMap
+        if(fieldName == 'PersonMailingCity' || fieldName == 'PersonMailingCountry' || fieldName == 'PersonMailingGeocodeAccuracy'
+            || fieldName == 'PersonMailingLatitude' || fieldName == 'PersonMailingLongitude' || fieldName == 'PersonMailingPostalCode'
+        || fieldName == 'PersonMailingState' || fieldName == 'PersonMailingStreet'){
+            personAddressMap.put(EEP_ClientPayload.addressFieldMap.get(fieldName), newAccFieldValueMap.get(fieldName));
+            jsonMapAcc.put('mailingAddress', personAddressMap);
+            jsonMapAcc.put('shippingAddress', shippingAddressMap);
+            addToJsonList = true;
+        }
+        else if(fieldName == 'BillingCity' || fieldName == 'BillingCountry' || fieldName == 'BillingGeocodeAccuracy'
+            || fieldName == 'BillingLatitude' || fieldName == 'BillingLongitude' || fieldName == 'BillingPostalCode'
+        || fieldName == 'BillingState' || fieldName == 'BillingStreet'){
+            billingAddressMap.put(EEP_ClientPayload.addressFieldMap.get(fieldName), newAccFieldValueMap.get(fieldName));
+            jsonMapAcc.put('billingAddress', billingAddressMap);
+            addToJsonList = true;
+        }
+        // else if(fieldName == 'ShippingCity' || fieldName == 'ShippingCountry' || fieldName == 'ShippingGeocodeAccuracy'
+        //     || fieldName == 'ShippingLatitude' || fieldName == 'ShippingLongitude' || fieldName == 'ShippingPostalCode'
+        // || fieldName == 'ShippingState' || fieldName == 'ShippingStreet'){
+        //     shippingAddressMap.put(EEP_ClientPayload.addressFieldMap.get(fieldName), newAccFieldValueMap.get(fieldName));
+        //     jsonMapAcc.put('shippingAddress', shippingAddressMap);
+        //     addToJsonList = true;
+        // }
+    }
+    
+    //This method returns a list of API field names.
+    private static List<String> getAllFieldsApiName(String objName){
+        Map<String, Schema.SObjectField> MapofField = Schema.getGlobalDescribe().get(objName).getDescribe().fields.getMap();
+        List<String> fieldNameList = new List<String>();
+        for(String fieldName : MapofField.keySet())
+        {
+            Schema.DescribeFieldResult F = MapofField.get(fieldName).getDescribe();
+            fieldNameList.add(F.getName());
+        }
+        return fieldNameList;
+    }
+    
+}
