@@ -1,0 +1,119 @@
+Public without sharing class EEP_UnqorkTasksEventIntegration {
+    Public static List<EEP_TaskPayload.EEP_CreateTask_Response> createTask(List<EEP_TaskPayload.EEP_Task_Payload> payload) {
+        Savepoint sp = null;
+        List<EEP_TaskPayload.EEP_CreateTask_Response> responses = new List<EEP_TaskPayload.EEP_CreateTask_Response>();
+        List<Task> taskToInsert = new List<Task>();
+        
+        try {
+            sp = Database.setSavepoint();
+            
+            try {
+
+                validatePayloadStructure(payload);
+            } catch (CustomException ex) {
+                throw new CustomException('Validation Error: ' +'Invalid data structure');
+            }
+            
+            for (EEP_TaskPayload.EEP_Task_Payload jsonDataforTask : payload) {
+                if(string.isBlank(jsonDataforTask.subject)||string.isBlank(jsonDataforTask.description)){
+                    throw new CustomException('Validation Error: ' +'Missing required values');
+                }else{	
+                    String recordTypeId = null;
+                    
+                    if (jsonDataforTask.recordTypeID == 'System Notification') {
+                        Schema.RecordTypeInfo recordTypeInfo = 
+                            Schema.SObjectType.Task.getRecordTypeInfosByName().get('System Notification');
+                        
+                        if (recordTypeInfo == null) {
+                            throw new CustomException('Record Type System Notification does not exist for Task.');
+                        }
+                        
+                        recordTypeId = recordTypeInfo.getRecordTypeId();
+                    } else {
+                        throw new CustomException('Unsupported Record Type: ' + jsonDataforTask.recordTypeID);
+                    }
+                    Task newTask = new Task();
+                    newTask.Task_Subtype__c = jsonDataforTask.taskSubType;
+                    newTask.Subject = jsonDataforTask.subject;
+                    newTask.Status = jsonDataforTask.status;
+                    newTask.WhatId = jsonDataforTask.salesforceAccountID;
+                    newTask.RecordTypeId = recordTypeId;
+                    newTask.Priority = jsonDataforTask.priority;
+                    newTask.Description = jsonDataforTask.description;
+                    newTask.ActivityDate = System.today();
+                    newTask.Completed_Date_Time__c = jsonDataforTask.completedDateTime;
+                    taskToInsert.add(newTask);
+                }
+            }
+            
+            if (!taskToInsert.isEmpty()) {
+                Database.SaveResult[] taskResults = Database.insert(taskToInsert, false);
+                
+                for (Integer i = 0; i < taskResults.size(); i++) {
+                    Database.SaveResult result = taskResults[i];
+                    if (result.isSuccess()) {
+                        responses.add(new EEP_TaskPayload.EEP_CreateTask_Response(
+                            result.getId(),
+                            'Task has been created.',
+                            '200'
+                        ));
+                    } else {
+                        responses.add(new EEP_TaskPayload.EEP_CreateTask_Response(
+                            null,
+                            'Failed to insert Task: ' + result.getErrors()[0].getMessage(),
+                            '404'
+                        ));
+                    }
+                }
+            }
+        } 
+        catch (CustomException ex) {
+            Database.rollback(sp);
+            EEP_ErrorLogger.logError(ex);
+            responses.add(new EEP_TaskPayload.EEP_CreateTask_Response(
+                null,
+                ex.getMessage(),
+                '401'
+            ));
+        } 
+        catch (Exception ex) {
+            Database.rollback(sp);
+            EEP_ErrorLogger.logError(ex);
+            responses.add(new EEP_TaskPayload.EEP_CreateTask_Response(
+                null,
+                'Error: ' + ex.getMessage(),
+                '404'
+            ));
+        }
+        return responses;
+    }
+    
+    private static void validatePayloadStructure(List<EEP_TaskPayload.EEP_Task_Payload> payload) {
+        if (payload == null || payload.isEmpty()) {
+            throw new CustomException('Payload is null or empty');
+        }
+        
+        Set<String> requiredKeys = new Set<String>{
+            'salesforceAccountID', 
+                'subject', 
+                'completedDateTime', 
+                'recordTypeID', 
+                'taskSubType', 
+                'description', 
+                'status', 
+                'priority'
+                };
+                    
+                    for (EEP_TaskPayload.EEP_Task_Payload task1 : payload) {
+                        Map<String, Object> taskMap = (Map<String, Object>) JSON.deserializeUntyped(JSON.serialize(task1));
+
+                        for (String key : requiredKeys) {
+                            if (taskMap.get(key) == null) {
+                                throw new CustomException('Missing required key: ' + key);
+                            }
+                        }
+                    }
+    }
+    
+    Public class CustomException extends Exception {}
+}
