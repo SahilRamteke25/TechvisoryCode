@@ -1,0 +1,140 @@
+/******************************************************************************************
+* Name         :    EEP_HouseholdCreationTriggerHandler
+* Description  :    Handler for PersonAccountTrigger (after insert)
+* Author       :    Md Dawood Razauddin
+* Version      :    1.0
+* Modification Log
+* ----------------
+* Date        Developer         Chg #         Comments
+* ----------- ------------- ------------- ------------------------------------------------
+*          
+
+*******************************************************************************************/
+public class EEP_HouseholdCreationTriggerHandler extends TriggerHandler{
+    
+    public override void beforeInsert()
+    {
+        List<Account> newPersonAccount = new List<Account>();
+        Map<String, Schema.RecordTypeInfo> rtInfos = Schema.SObjectType.Account.getRecordTypeInfosByName();
+        for (String rtName : rtInfos.keySet()) {
+            
+        }
+        Id prospectRecordTypeId = Schema.SObjectType.Account.getRecordTypeInfosByName().get(System.Label.Prospect_Record_Type).getRecordTypeId();
+        
+        for (Account acc : (List<Account>)Trigger.New)
+        {
+            if (acc.IsPersonAccount && acc.RecordTypeId == prospectRecordTypeId)
+            {
+                newPersonAccount.add(acc);
+            }
+        }
+        
+        if (!newPersonAccount.isEmpty()) {
+            EEP_HouseholdCreationHelper.handleBeforeNewPersonAccounts(newPersonAccount);
+        }
+    }      
+    
+    public override void afterInsert()
+    {
+        List<Account> newPersonAccount = new List<Account>();
+        
+        Id prospectRecordTypeId = Schema.SObjectType.Account.getRecordTypeInfosByName().get(System.Label.Prospect_Record_Type).getRecordTypeId();
+        
+        for (Account acc : (List<Account>)Trigger.New)
+        {
+            if (acc.IsPersonAccount && acc.RecordTypeId == prospectRecordTypeId)
+            {
+                newPersonAccount.add(acc);
+            }
+        }
+        
+        if (!newPersonAccount.isEmpty()) {
+            EEP_HouseholdCreationHelper.newAccountsConReference(newPersonAccount, trigger.newMap);
+            System.enqueueJob(new EEP_CreateHouseHoldAccountQueueable(newPersonAccount,trigger.newMap.keyset(),trigger.newMap));
+        }
+    }  
+    
+    public override void afterUpdate()
+    {
+        Map<Id ,Account> newPersonAccountMap = new Map<Id ,Account>();
+        Map<Id ,Account> oldPersonAccountMap = new Map<Id ,Account>();
+        List<Account> personAcounts = new List<Account>();
+        
+        Id prospectRecordTypeId = Schema.SObjectType.Account.getRecordTypeInfosByName().get(System.Label.Prospect_Record_Type).getRecordTypeId();
+        Id personRecordTypeId = Schema.SObjectType.Account.getRecordTypeInfosByName().get(System.Label.Client_Record_Type).getRecordTypeId();
+        for (Account acc : (List<Account>)Trigger.New) {
+            if (acc.IsPersonAccount && (acc.RecordTypeId == prospectRecordTypeId || acc.RecordTypeId == personRecordTypeId)) {
+                
+                newPersonAccountMap.put(acc.Id , acc);
+            } 
+        }
+        
+        for (Account acc : (List<Account>)Trigger.New) {
+            if (acc.IsPersonAccount && (acc.RecordTypeId == prospectRecordTypeId )) {
+                personAcounts.add(acc);
+            } 
+        }
+        
+        for (Account acc : (List<Account>)Trigger.old) { 
+            if (acc.IsPersonAccount && (acc.RecordTypeId == prospectRecordTypeId || acc.RecordTypeId == personRecordTypeId) ) {
+                oldPersonAccountMap.put(acc.Id , acc);
+            }
+        }
+        
+        Set<Id> primaryMembers = new Set<Id>();
+        Set<Id> householdIds = new Set<Id>();
+        Set<Id> dupPrimaryMembers = new Set<Id>();
+        
+        Map<Id , Id > personVsClientId = new Map<Id , Id >();
+        Set<Id> personContactIds = new Set<Id>();
+        for(Account acc : [SELECT Id , personcontactId 
+                           FROM Account 
+                           where Id In : trigger.oldMap.keyset()]){
+                               personVsClientId.put(acc.personContactId , acc.Id); 
+                               personContactIds.add(acc.personContactId);
+                           }        
+        
+        for(AccountContactRelation accacc : [SELECT Id, FinServ__Primary__c,
+                                             AccountId, ContactId, CreatedDate
+                                             FROM AccountContactRelation
+                                             WHERE ContactId =:personContactIds
+                                             AND FinServ__Primary__c = true
+                                             ORDER by CreatedDate asc])
+        {
+            householdIds.add(accacc.AccountId);
+            
+        }
+        
+        Map<Id , List<Id>> householdVsMembers = new Map<Id , List<Id>>();
+        for(AccountContactRelation accacc : [SELECT Id, FinServ__Primary__c,
+                                             AccountId, ContactId, CreatedDate
+                                             FROM AccountContactRelation
+                                             WHERE ContactId =:personContactIds
+                                             AND FinServ__Primary__c = true
+                                             ORDER by CreatedDate asc])
+        {
+            if (!householdVsMembers.containskey(accacc.AccountId))
+            {
+                householdVsMembers.put(accacc.AccountId , new List<Id>());
+                householdVsMembers.get(accacc.AccountId).add(personVsClientId.get(accacc.ContactId));
+                primaryMembers.add(personVsClientId.get(accacc.ContactId));
+            }
+        }
+        
+        EEP_HouseholdCreationHelper.handleUpdatedPersonAccounts(newPersonAccountMap, oldPersonAccountMap, primaryMembers, trigger.newMap.keyset());
+        Profile currentProfile = new Profile();
+        String UserName;
+        if(!test.isRunningTest()) {
+             UserName = UserInfo.getName();
+             if(UserName != NULL && UserName != 'Automated Process') {
+                 currentProfile = [SELECT Name FROM Profile WHERE Id = :UserInfo.getProfileId()];
+             }
+        }else {
+             currentProfile = [SELECT Name FROM Profile WHERE Name = 'System Administrator'];
+        }
+        if (UserName != 'Automated Process' && currentProfile?.Name != 'Minimum Access - API Only Integrations') 
+        {
+            EEP_ClientEventHandler.handleUpdatedAccounts(Trigger.oldMap, Trigger.newMap);   //UPDATE: EEPSF-64
+        }
+    } 
+}

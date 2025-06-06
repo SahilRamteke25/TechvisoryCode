@@ -1,0 +1,29 @@
+public class EEP_UnqorkTasksEventHelper {
+    public static void processTaskWrapper( List<EEP_UnqorkTask__e> EEP_UnqorkTasksLst){
+        for(EEP_UnqorkTask__e taskObj : EEP_UnqorkTasksLst){
+            try{
+                if (String.isNotBlank(taskObj.Task_Metadata__c)) {
+                    
+                    EEP_TaskPayload.EEP_Task_PayloadWrapper payloadWrapper = (EEP_TaskPayload.EEP_Task_PayloadWrapper) JSON.deserialize(
+                        taskObj.Task_Metadata__c,
+                        EEP_TaskPayload.EEP_Task_PayloadWrapper.class
+                    );
+                    List<EEP_TaskPayload.EEP_Task_Payload> payloadList = payloadWrapper.payload;
+                    
+                    if (!payloadList.isEmpty()) {
+                        EEP_UnqorkTasksEventIntegration.createTask(payloadList);
+                    } else {
+
+                    }
+                }
+                else {
+
+                }
+            } 
+            catch(Exception ex){
+            EEP_ErrorLogger.logError(ex);
+                
+            }
+        }
+    }
+}
